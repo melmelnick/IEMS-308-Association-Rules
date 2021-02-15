@@ -1,0 +1,1271 @@
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "# IEMS 308 Association Rules - Melissa Melnick"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 1,
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2021-02-14T23:52:07.748302Z",
+     "start_time": "2021-02-14T23:52:07.739996Z"
+    }
+   },
+   "outputs": [],
+   "source": [
+    "import pandas as pd\n",
+    "import numpy as np\n",
+    "import pandas as pd\n",
+    "from mlxtend.frequent_patterns import apriori\n",
+    "from mlxtend.frequent_patterns import association_rules"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "Reading in the SKU info:"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 2,
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2021-02-14T23:52:23.145456Z",
+     "start_time": "2021-02-14T23:52:23.123653Z"
+    }
+   },
+   "outputs": [],
+   "source": [
+    "skus = pd.read_csv('../Desktop/skuinfo.csv', usecols = [0,1,9], header = None)\n",
+    "skus.columns = ['sku', 'dept', 'brand']"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "Reading in the skst info:"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 4,
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2021-02-14T23:53:08.273423Z",
+     "start_time": "2021-02-14T23:53:08.254896Z"
+    }
+   },
+   "outputs": [],
+   "source": [
+    "sksts = pd.read_csv('../Desktop/skstinfo.csv', usecols = [0,1],header = None)\n",
+    "sksts.columns = ['Sku', 'Store']"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "Reading in the transactions data:"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 5,
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2021-02-14T23:53:18.130683Z",
+     "start_time": "2021-02-14T23:53:18.109163Z"
+    }
+   },
+   "outputs": [],
+   "source": [
+    "trans = pd.read_csv('../Desktop/trnsact.csv', header = None, usecols = [0,1,2,3,4,5,6])\n",
+    "trans.columns = ['sku', 'store', 'register', 'trannum', 'seq', 'saledate', 'stype']"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "Reading in the store info:"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 6,
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2021-02-14T23:53:28.364052Z",
+     "start_time": "2021-02-14T23:53:28.344348Z"
+    }
+   },
+   "outputs": [],
+   "source": [
+    "stores = pd.read_csv('../Desktop/strinfo.csv', header = None, usecols = [0,2])\n",
+    "stores.columns = ['store', 'state']"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "Isolating the data to only stores located in Missouri:"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 7,
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2021-02-14T23:53:39.499698Z",
+     "start_time": "2021-02-14T23:53:39.492271Z"
+    }
+   },
+   "outputs": [],
+   "source": [
+    "stores = stores[stores['state'] == \"MO\"]"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "Creating one table with only transactions in Missouri:"
+   ]
+  },
+  {
+   "cell_type": "raw",
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2021-02-14T23:53:50.636209Z",
+     "start_time": "2021-02-14T23:53:50.626988Z"
+    }
+   },
+   "source": [
+    "trans = trans.merge(stores, left_on='store', right_on='store')"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "Isolate data to just purchases, not returns:"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 8,
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2021-02-14T23:54:04.986957Z",
+     "start_time": "2021-02-14T23:54:04.978160Z"
+    }
+   },
+   "outputs": [],
+   "source": [
+    "trans = trans[trans['stype']=='P']"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "Merge again to add in SKU data:"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 9,
+   "metadata": {
+    "ExecuteTime": {
+     "end_time": "2021-02-14T23:54:14.270793Z",
+     "start_time": "2021-02-14T23:54:14.262902Z"
+    }
+   },
+   "outputs": [],
+   "source": [
+    "trans = trans.merge(skus, left_on = 'sku', right_on = 'sku')"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "Calculating Unique number of SKUs:"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 10,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "713172"
+      ]
+     },
+     "execution_count": 10,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "len(pd.unique(trans['sku'])) "
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "Finding frequency of each SKU:"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 11,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "pop_sku = pd.DataFrame(trans['sku'].value_counts())\n",
+    "pop_sku.reset_index(level=0, inplace=True)\n",
+    "pop_sku = pop_sku.rename(columns = {'sku':'count', 'index':'sku'})"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "Narrowing down skus to the top 200 and dropping the count column:"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 12,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/html": [
+       "<div>\n",
+       "<style scoped>\n",
+       "    .dataframe tbody tr th:only-of-type {\n",
+       "        vertical-align: middle;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe tbody tr th {\n",
+       "        vertical-align: top;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe thead th {\n",
+       "        text-align: right;\n",
+       "    }\n",
+       "</style>\n",
+       "<table border=\"1\" class=\"dataframe\">\n",
+       "  <thead>\n",
+       "    <tr style=\"text-align: right;\">\n",
+       "      <th></th>\n",
+       "      <th>sku</th>\n",
+       "    </tr>\n",
+       "  </thead>\n",
+       "  <tbody>\n",
+       "    <tr>\n",
+       "      <th>0</th>\n",
+       "      <td>4628597</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>1</th>\n",
+       "      <td>4108011</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>2</th>\n",
+       "      <td>3524026</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>3</th>\n",
+       "      <td>5528349</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>4</th>\n",
+       "      <td>3978011</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>...</th>\n",
+       "      <td>...</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>195</th>\n",
+       "      <td>2718353</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>196</th>\n",
+       "      <td>6420710</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>197</th>\n",
+       "      <td>913783</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>198</th>\n",
+       "      <td>5739904</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>199</th>\n",
+       "      <td>4838011</td>\n",
+       "    </tr>\n",
+       "  </tbody>\n",
+       "</table>\n",
+       "<p>200 rows × 1 columns</p>\n",
+       "</div>"
+      ],
+      "text/plain": [
+       "         sku\n",
+       "0    4628597\n",
+       "1    4108011\n",
+       "2    3524026\n",
+       "3    5528349\n",
+       "4    3978011\n",
+       "..       ...\n",
+       "195  2718353\n",
+       "196  6420710\n",
+       "197   913783\n",
+       "198  5739904\n",
+       "199  4838011\n",
+       "\n",
+       "[200 rows x 1 columns]"
+      ]
+     },
+     "execution_count": 12,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "most_pop_sku = pop_sku[0:200]\n",
+    "most_pop_sku.drop('count', axis = 1)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "Narrow transdata down so that only top skus are included:"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 13,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "final_data = trans[trans['sku'].isin(most_pop_sku['sku'])]"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 14,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "final_data = final_data.astype(str)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "Creating Unique Basket IDs:"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 15,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "basket_num = final_data['store']+final_data['register'] + final_data['trannum'] + final_data['seq']+final_data['saledate']"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 16,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "365512    10243028004108001102004-10-12\n",
+       "365513     1026802001737088922005-01-02\n",
+       "365514             10268020002005-05-06\n",
+       "dtype: object"
+      ]
+     },
+     "execution_count": 16,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "basket_num.head(3)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 17,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "final_data['basket_num'] = basket_num"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 18,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/html": [
+       "<div>\n",
+       "<style scoped>\n",
+       "    .dataframe tbody tr th:only-of-type {\n",
+       "        vertical-align: middle;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe tbody tr th {\n",
+       "        vertical-align: top;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe thead th {\n",
+       "        text-align: right;\n",
+       "    }\n",
+       "</style>\n",
+       "<table border=\"1\" class=\"dataframe\">\n",
+       "  <thead>\n",
+       "    <tr style=\"text-align: right;\">\n",
+       "      <th></th>\n",
+       "      <th>sku</th>\n",
+       "      <th>store</th>\n",
+       "      <th>register</th>\n",
+       "      <th>trannum</th>\n",
+       "      <th>seq</th>\n",
+       "      <th>saledate</th>\n",
+       "      <th>stype</th>\n",
+       "      <th>dept</th>\n",
+       "      <th>brand</th>\n",
+       "      <th>basket_num</th>\n",
+       "    </tr>\n",
+       "  </thead>\n",
+       "  <tbody>\n",
+       "    <tr>\n",
+       "      <th>365512</th>\n",
+       "      <td>29633</td>\n",
+       "      <td>102</td>\n",
+       "      <td>430</td>\n",
+       "      <td>2800</td>\n",
+       "      <td>410800110</td>\n",
+       "      <td>2004-10-12</td>\n",
+       "      <td>P</td>\n",
+       "      <td>800</td>\n",
+       "      <td>CLINIQUE</td>\n",
+       "      <td>10243028004108001102004-10-12</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>365513</th>\n",
+       "      <td>29633</td>\n",
+       "      <td>102</td>\n",
+       "      <td>680</td>\n",
+       "      <td>200</td>\n",
+       "      <td>173708892</td>\n",
+       "      <td>2005-01-02</td>\n",
+       "      <td>P</td>\n",
+       "      <td>800</td>\n",
+       "      <td>CLINIQUE</td>\n",
+       "      <td>1026802001737088922005-01-02</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>365514</th>\n",
+       "      <td>29633</td>\n",
+       "      <td>102</td>\n",
+       "      <td>680</td>\n",
+       "      <td>200</td>\n",
+       "      <td>0</td>\n",
+       "      <td>2005-05-06</td>\n",
+       "      <td>P</td>\n",
+       "      <td>800</td>\n",
+       "      <td>CLINIQUE</td>\n",
+       "      <td>10268020002005-05-06</td>\n",
+       "    </tr>\n",
+       "  </tbody>\n",
+       "</table>\n",
+       "</div>"
+      ],
+      "text/plain": [
+       "          sku store register trannum        seq    saledate stype dept  \\\n",
+       "365512  29633   102      430    2800  410800110  2004-10-12     P  800   \n",
+       "365513  29633   102      680     200  173708892  2005-01-02     P  800   \n",
+       "365514  29633   102      680     200          0  2005-05-06     P  800   \n",
+       "\n",
+       "            brand                     basket_num  \n",
+       "365512  CLINIQUE   10243028004108001102004-10-12  \n",
+       "365513  CLINIQUE    1026802001737088922005-01-02  \n",
+       "365514  CLINIQUE            10268020002005-05-06  "
+      ]
+     },
+     "execution_count": 18,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "final_data.head(3)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "One-Hot Encoding all of the SKU values:"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 19,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "onehot = pd.get_dummies(final_data['sku'], prefix = 'sku')"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 20,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/html": [
+       "<div>\n",
+       "<style scoped>\n",
+       "    .dataframe tbody tr th:only-of-type {\n",
+       "        vertical-align: middle;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe tbody tr th {\n",
+       "        vertical-align: top;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe thead th {\n",
+       "        text-align: right;\n",
+       "    }\n",
+       "</style>\n",
+       "<table border=\"1\" class=\"dataframe\">\n",
+       "  <thead>\n",
+       "    <tr style=\"text-align: right;\">\n",
+       "      <th></th>\n",
+       "      <th>sku_106343</th>\n",
+       "      <th>sku_108507</th>\n",
+       "      <th>sku_1184024</th>\n",
+       "      <th>sku_1206132</th>\n",
+       "      <th>sku_1310252</th>\n",
+       "      <th>sku_1400555</th>\n",
+       "      <th>sku_1410555</th>\n",
+       "      <th>sku_1588107</th>\n",
+       "      <th>sku_1658506</th>\n",
+       "      <th>sku_1658851</th>\n",
+       "      <th>...</th>\n",
+       "      <th>sku_9552306</th>\n",
+       "      <th>sku_9562306</th>\n",
+       "      <th>sku_9594893</th>\n",
+       "      <th>sku_9667426</th>\n",
+       "      <th>sku_9702306</th>\n",
+       "      <th>sku_9708505</th>\n",
+       "      <th>sku_9722306</th>\n",
+       "      <th>sku_9836218</th>\n",
+       "      <th>sku_9911900</th>\n",
+       "      <th>sku_994478</th>\n",
+       "    </tr>\n",
+       "  </thead>\n",
+       "  <tbody>\n",
+       "    <tr>\n",
+       "      <th>365512</th>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>...</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>365513</th>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>...</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>365514</th>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>...</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>365515</th>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>...</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>365516</th>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>...</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "    </tr>\n",
+       "  </tbody>\n",
+       "</table>\n",
+       "<p>5 rows × 200 columns</p>\n",
+       "</div>"
+      ],
+      "text/plain": [
+       "        sku_106343  sku_108507  sku_1184024  sku_1206132  sku_1310252  \\\n",
+       "365512           0           0            0            0            0   \n",
+       "365513           0           0            0            0            0   \n",
+       "365514           0           0            0            0            0   \n",
+       "365515           0           0            0            0            0   \n",
+       "365516           0           0            0            0            0   \n",
+       "\n",
+       "        sku_1400555  sku_1410555  sku_1588107  sku_1658506  sku_1658851  ...  \\\n",
+       "365512            0            0            0            0            0  ...   \n",
+       "365513            0            0            0            0            0  ...   \n",
+       "365514            0            0            0            0            0  ...   \n",
+       "365515            0            0            0            0            0  ...   \n",
+       "365516            0            0            0            0            0  ...   \n",
+       "\n",
+       "        sku_9552306  sku_9562306  sku_9594893  sku_9667426  sku_9702306  \\\n",
+       "365512            0            0            0            0            0   \n",
+       "365513            0            0            0            0            0   \n",
+       "365514            0            0            0            0            0   \n",
+       "365515            0            0            0            0            0   \n",
+       "365516            0            0            0            0            0   \n",
+       "\n",
+       "        sku_9708505  sku_9722306  sku_9836218  sku_9911900  sku_994478  \n",
+       "365512            0            0            0            0           0  \n",
+       "365513            0            0            0            0           0  \n",
+       "365514            0            0            0            0           0  \n",
+       "365515            0            0            0            0           0  \n",
+       "365516            0            0            0            0           0  \n",
+       "\n",
+       "[5 rows x 200 columns]"
+      ]
+     },
+     "execution_count": 20,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "onehot.head()"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "Adding the One-Hot encoding variables to the Transaction Data"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 21,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "more_data = pd.concat([final_data,onehot],axis=1)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 22,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/html": [
+       "<div>\n",
+       "<style scoped>\n",
+       "    .dataframe tbody tr th:only-of-type {\n",
+       "        vertical-align: middle;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe tbody tr th {\n",
+       "        vertical-align: top;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe thead th {\n",
+       "        text-align: right;\n",
+       "    }\n",
+       "</style>\n",
+       "<table border=\"1\" class=\"dataframe\">\n",
+       "  <thead>\n",
+       "    <tr style=\"text-align: right;\">\n",
+       "      <th></th>\n",
+       "      <th>sku</th>\n",
+       "      <th>store</th>\n",
+       "      <th>register</th>\n",
+       "      <th>trannum</th>\n",
+       "      <th>seq</th>\n",
+       "      <th>saledate</th>\n",
+       "      <th>stype</th>\n",
+       "      <th>dept</th>\n",
+       "      <th>brand</th>\n",
+       "      <th>basket_num</th>\n",
+       "      <th>...</th>\n",
+       "      <th>sku_9552306</th>\n",
+       "      <th>sku_9562306</th>\n",
+       "      <th>sku_9594893</th>\n",
+       "      <th>sku_9667426</th>\n",
+       "      <th>sku_9702306</th>\n",
+       "      <th>sku_9708505</th>\n",
+       "      <th>sku_9722306</th>\n",
+       "      <th>sku_9836218</th>\n",
+       "      <th>sku_9911900</th>\n",
+       "      <th>sku_994478</th>\n",
+       "    </tr>\n",
+       "  </thead>\n",
+       "  <tbody>\n",
+       "    <tr>\n",
+       "      <th>365512</th>\n",
+       "      <td>29633</td>\n",
+       "      <td>102</td>\n",
+       "      <td>430</td>\n",
+       "      <td>2800</td>\n",
+       "      <td>410800110</td>\n",
+       "      <td>2004-10-12</td>\n",
+       "      <td>P</td>\n",
+       "      <td>800</td>\n",
+       "      <td>CLINIQUE</td>\n",
+       "      <td>10243028004108001102004-10-12</td>\n",
+       "      <td>...</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>365513</th>\n",
+       "      <td>29633</td>\n",
+       "      <td>102</td>\n",
+       "      <td>680</td>\n",
+       "      <td>200</td>\n",
+       "      <td>173708892</td>\n",
+       "      <td>2005-01-02</td>\n",
+       "      <td>P</td>\n",
+       "      <td>800</td>\n",
+       "      <td>CLINIQUE</td>\n",
+       "      <td>1026802001737088922005-01-02</td>\n",
+       "      <td>...</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>365514</th>\n",
+       "      <td>29633</td>\n",
+       "      <td>102</td>\n",
+       "      <td>680</td>\n",
+       "      <td>200</td>\n",
+       "      <td>0</td>\n",
+       "      <td>2005-05-06</td>\n",
+       "      <td>P</td>\n",
+       "      <td>800</td>\n",
+       "      <td>CLINIQUE</td>\n",
+       "      <td>10268020002005-05-06</td>\n",
+       "      <td>...</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>365515</th>\n",
+       "      <td>29633</td>\n",
+       "      <td>102</td>\n",
+       "      <td>680</td>\n",
+       "      <td>300</td>\n",
+       "      <td>721707033</td>\n",
+       "      <td>2004-08-24</td>\n",
+       "      <td>P</td>\n",
+       "      <td>800</td>\n",
+       "      <td>CLINIQUE</td>\n",
+       "      <td>1026803007217070332004-08-24</td>\n",
+       "      <td>...</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>365516</th>\n",
+       "      <td>29633</td>\n",
+       "      <td>102</td>\n",
+       "      <td>680</td>\n",
+       "      <td>300</td>\n",
+       "      <td>0</td>\n",
+       "      <td>2005-02-23</td>\n",
+       "      <td>P</td>\n",
+       "      <td>800</td>\n",
+       "      <td>CLINIQUE</td>\n",
+       "      <td>10268030002005-02-23</td>\n",
+       "      <td>...</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "    </tr>\n",
+       "  </tbody>\n",
+       "</table>\n",
+       "<p>5 rows × 210 columns</p>\n",
+       "</div>"
+      ],
+      "text/plain": [
+       "          sku store register trannum        seq    saledate stype dept  \\\n",
+       "365512  29633   102      430    2800  410800110  2004-10-12     P  800   \n",
+       "365513  29633   102      680     200  173708892  2005-01-02     P  800   \n",
+       "365514  29633   102      680     200          0  2005-05-06     P  800   \n",
+       "365515  29633   102      680     300  721707033  2004-08-24     P  800   \n",
+       "365516  29633   102      680     300          0  2005-02-23     P  800   \n",
+       "\n",
+       "            brand                     basket_num  ...  sku_9552306  \\\n",
+       "365512  CLINIQUE   10243028004108001102004-10-12  ...            0   \n",
+       "365513  CLINIQUE    1026802001737088922005-01-02  ...            0   \n",
+       "365514  CLINIQUE            10268020002005-05-06  ...            0   \n",
+       "365515  CLINIQUE    1026803007217070332004-08-24  ...            0   \n",
+       "365516  CLINIQUE            10268030002005-02-23  ...            0   \n",
+       "\n",
+       "        sku_9562306  sku_9594893  sku_9667426  sku_9702306  sku_9708505  \\\n",
+       "365512            0            0            0            0            0   \n",
+       "365513            0            0            0            0            0   \n",
+       "365514            0            0            0            0            0   \n",
+       "365515            0            0            0            0            0   \n",
+       "365516            0            0            0            0            0   \n",
+       "\n",
+       "        sku_9722306  sku_9836218  sku_9911900  sku_994478  \n",
+       "365512            0            0            0           0  \n",
+       "365513            0            0            0           0  \n",
+       "365514            0            0            0           0  \n",
+       "365515            0            0            0           0  \n",
+       "365516            0            0            0           0  \n",
+       "\n",
+       "[5 rows x 210 columns]"
+      ]
+     },
+     "execution_count": 22,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "more_data.head()"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "Dropping the etra columns:"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 23,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "more_data.drop(['sku', 'store', 'register', 'trannum', 'seq', 'saledate', 'stype', 'dept', 'brand'], axis = 1, inplace = True)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "Grouping the Baskets by Basket ID:"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "lastone = more_data.groupby(['basket_num']).sum()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 24,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "(6346165, 200)"
+      ]
+     },
+     "execution_count": 24,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "lastone.shape"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 25,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "lastone = lastone[~(lastone>1).any(1)]"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 26,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "(5925925, 200)"
+      ]
+     },
+     "execution_count": 26,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "lastone.shape"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "Performing Apriori Analysis:"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "frequentItemsets = apriori(lastone, min_support=0.0002, use_colnames=True)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "Performing Association Rules Analysis:"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "rules = association_rules(frequentItemsets, metric=\"lift\", min_threshold=5)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "print(rules)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "scrolled": false
+   },
+   "outputs": [],
+   "source": [
+    "rules.describe()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "scrolled": true
+   },
+   "outputs": [],
+   "source": [
+    "top_rules = rules.sort_values(by='lift', ascending=False)[0:100]"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "scrolled": true
+   },
+   "outputs": [],
+   "source": [
+    "top_rules"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "top_rules[\"antecedents\"] = top_rules[\"antecedents\"].apply(lambda x: ', '.join(list(x))).astype(\"unicode\")"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {
+    "scrolled": false
+   },
+   "outputs": [],
+   "source": [
+    "sku_list = []\n",
+    "for val in top_rules['antecedents']:\n",
+    "    try:\n",
+    "        val = val.strip('sku_')\n",
+    "        val = int(val)\n",
+    "        sku_list.append(val)\n",
+    "    except:\n",
+    "        continue\n",
+    "print(sku_list)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "top_rules[\"consequents\"] = top_rules[\"consequents\"].apply(lambda x: ', '.join(list(x))).astype(\"unicode\")"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "for val in top_rules['consequents']:\n",
+    "    try:\n",
+    "        val = val.strip('sku_')\n",
+    "        val = int(val)\n",
+    "        sku_list.append(val)\n",
+    "    except:\n",
+    "        continue\n",
+    "print(sku_list)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "top_skus = skus[skus['sku'].isin(sku_list)]"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "top_skus.head(10)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "top_skus['brand'].value_counts()"
+   ]
+  }
+ ],
+ "metadata": {
+  "kernelspec": {
+   "display_name": "Python 3",
+   "language": "python",
+   "name": "python3"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 3
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython3",
+   "version": "3.8.3"
+  },
+  "latex_envs": {
+   "LaTeX_envs_menu_present": true,
+   "autoclose": false,
+   "autocomplete": true,
+   "bibliofile": "biblio.bib",
+   "cite_by": "apalike",
+   "current_citInitial": 1,
+   "eqLabelWithNumbers": true,
+   "eqNumInitial": 1,
+   "hotkeys": {
+    "equation": "Ctrl-E",
+    "itemize": "Ctrl-I"
+   },
+   "labels_anchors": false,
+   "latex_user_defs": false,
+   "report_style_numbering": false,
+   "user_envs_cfg": false
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 5
+}
